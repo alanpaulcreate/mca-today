@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  whatsapp_bot:
+    build: .
+    container_name: mca_whatsapp_bot
+    restart: always
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    volumes:
+      - ./whatsapp_reminders.json:/app/whatsapp_reminders.json
+      - ./MCA_I_Semester_Batch_A_Timetable.csv:/app/MCA_I_Semester_Batch_A_Timetable.csv
+
+  telegram_bot:
+    build: .
+    container_name: mca_telegram_bot
+    restart: always
+    command: python bot.py
+    env_file:
+      - .env
+    volumes:
+      - ./reminders.json:/app/reminders.json
+      - ./MCA_I_Semester_Batch_A_Timetable.csv:/app/MCA_I_Semester_Batch_A_Timetable.csv

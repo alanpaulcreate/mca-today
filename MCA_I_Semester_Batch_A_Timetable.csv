@@ -1,0 +1,30 @@
+﻿Day,Start,End,Subject,Venue
+Mon,09:00,10:00,DS LAB,CIS LAB
+Mon,10:00,11:00,DS LAB,CIS LAB
+Mon,11:00,12:00,SE,Lec Hall II
+Mon,12:00,13:00,SE,Lec Hall II
+Mon,14:00,15:00,DSA,Lec Hall II
+Mon,15:00,16:00,DSA,Lec Hall II
+Tue,09:00,10:00,PP Lab,CIS LAB
+Tue,10:00,11:00,PP Lab,CIS LAB
+Tue,11:00,12:00,MFC,Lec Hall II
+Tue,12:00,13:00,PP,Lec Hall II
+Tue,14:00,15:00,PP,Lec Hall II
+Tue,15:00,16:00,Free Slot,-
+Wed,09:00,10:00,PP,Lec Hall II
+Wed,10:00,11:00,MFC,Lec Hall II
+Wed,11:00,12:00,DFCA,Lec Hall II
+Wed,12:00,13:00,SE,Lec Hall II
+Wed,14:00,15:00,DFCA,Lec Hall II
+Wed,15:00,16:00,Free Slot,-
+Thu,09:00,10:00,SE Tutorial,ONLINE
+Thu,10:00,11:00,DFCA Tutorial,ONLINE
+Thu,11:00,12:00,PP Lab Tutorial,ONLINE
+Thu,12:00,13:00,DSA Tutorial,ONLINE
+Thu,14:00,15:00,PP Tutorial,ONLINE
+Thu,15:00,16:00,DS Lab Tutorial,ONLINE
+Fri,09:00,10:00,MFC,Lec Hall II
+Fri,10:00,11:00,MFC Tutorial,Lec Hall II
+Fri,11:00,12:00,DSA,Lec Hall II
+Fri,14:00,15:00,DFCA,Lec Hall II
+Fri,15:00,16:00,Free Slot,-

@@ -1,0 +1,36 @@
+# Secrets & Credentials
+.env
+.env.local
+.env.production
+!.env.example
+*.key
+*.pem
+
+# User Data & Reminders
+reminders.json
+whatsapp_reminders.json
+
+# Python cache & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Cloudflare / Ngrok / Local logs
+*.log
