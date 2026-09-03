@@ -8,7 +8,7 @@ from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client
 from dotenv import load_dotenv
 
-from timetable import get_classes_for_day, get_free_slots_for_day, format_classes
+from timetable import get_classes_for_day, get_free_slots_for_day, format_classes, format_all_faculty
 from sanitizer import sanitize_text, sanitize_phone_number, sanitize_offset, sanitize_day
 
 load_dotenv()
@@ -243,6 +243,10 @@ def whatsapp_reply():
         classes = get_classes_for_day(valid_day, include_free=False)
         msg.body(f"📅 *{valid_day.upper()}:*\n{format_classes(classes)}")
         
+    elif clean_msg in ['faculty', 'teachers', 'professors', 'staff', 'courses']:
+        msg.body(format_all_faculty().replace("**", "*"))
+        return str(resp)
+
     else:
         msg.body(
             "Hey! I'm your Timetable Bot 📅\n\n"
@@ -253,6 +257,7 @@ def whatsapp_reply():
             "• *next* - Next upcoming class\n"
             "• *week* - Full week timetable\n"
             "• *free* - Free slots today\n"
+            "• *faculty* - Course codes & teachers\n"
             "• *mon*, *tue*, *wed*, etc.\n\n"
             "🔔 *Reminders:*\n"
             "• *remind on [mins]* - e.g. `remind on 15`\n"

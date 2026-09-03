@@ -12,6 +12,7 @@ services:
     volumes:
       - ./whatsapp_reminders.json:/app/whatsapp_reminders.json
       - ./MCA_I_Semester_Batch_A_Timetable.csv:/app/MCA_I_Semester_Batch_A_Timetable.csv
+      - ./courses.csv:/app/courses.csv
 
   telegram_bot:
     build: .
@@ -23,3 +24,4 @@ services:
     volumes:
       - ./reminders.json:/app/reminders.json
       - ./MCA_I_Semester_Batch_A_Timetable.csv:/app/MCA_I_Semester_Batch_A_Timetable.csv
+      - ./courses.csv:/app/courses.csv

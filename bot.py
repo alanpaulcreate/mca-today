@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
 
-from timetable import get_classes_for_day, get_free_slots_for_day, format_classes
+from timetable import get_classes_for_day, get_free_slots_for_day, format_classes, format_all_faculty
 from sanitizer import sanitize_offset, sanitize_day, sanitize_text
 
 load_dotenv()
@@ -60,7 +60,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🗓️ This Week", callback_data='week'),
          InlineKeyboardButton("🕒 What's Now?", callback_data='now')],
         [InlineKeyboardButton("⏭️ Next Class", callback_data='next'),
-         InlineKeyboardButton("☕ Free Slots", callback_data='free')]
+         InlineKeyboardButton("☕ Free Slots", callback_data='free')],
+        [InlineKeyboardButton("👨‍🏫 Faculty & Courses", callback_data='faculty')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -73,6 +74,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/now - Currently ongoing class\n"
         "/next - Next class\n"
         "/free - Today's free slots\n"
+        "/faculty - Course codes & teachers\n"
         "/remind_on [mins] - e.g. `/remind_on 15` (default 10m)\n"
         "/remind_off - Stop reminders\n"
         "/remind_status - Check reminder status\n"
@@ -99,6 +101,13 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await now_class(update, context)
     elif clean_data == 'free':
         await free_slots(update, context)
+    elif clean_data == 'faculty':
+        await faculty(update, context)
+
+async def faculty(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = format_all_faculty()
+    if update.effective_message:
+        await update.effective_message.reply_text(text, parse_mode="Markdown")
 
 async def today(update: Update, context: ContextTypes.DEFAULT_TYPE):
     day = datetime.now().strftime("%a").lower()
@@ -251,6 +260,7 @@ def main():
     app.add_handler(CommandHandler("now", now_class))
     app.add_handler(CommandHandler("next", next_class))
     app.add_handler(CommandHandler("free", free_slots))
+    app.add_handler(CommandHandler("faculty", faculty))
     app.add_handler(CommandHandler("remind_on", remind_on))
     app.add_handler(CommandHandler("remind_off", remind_off))
     app.add_handler(CommandHandler("remind_status", remind_status))
