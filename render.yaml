@@ -1,7 +1,7 @@
 services:
   - type: web
     name: mca-whatsapp-bot
-    env: python
+    runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn whatsapp_bot:app --bind 0.0.0.0:$PORT
     envVars:
@@ -14,7 +14,7 @@ services:
 
   - type: worker
     name: mca-telegram-bot
-    env: python
+    runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py
     envVars:
