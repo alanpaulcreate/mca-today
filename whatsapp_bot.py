@@ -3,12 +3,12 @@ import json
 import threading
 import time
 from datetime import datetime, timedelta
-from flask import Flask, request
+from flask import Flask, request, render_template, jsonify
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client
 from dotenv import load_dotenv
 
-from timetable import get_classes_for_day, get_free_slots_for_day, format_classes, format_all_faculty
+from timetable import get_classes_for_day, get_free_slots_for_day, format_classes, format_all_faculty, get_all_courses
 from sanitizer import sanitize_text, sanitize_phone_number, sanitize_offset, sanitize_day
 
 load_dotenv()
@@ -110,6 +110,63 @@ def reminder_worker():
         time.sleep(30)
 
 threading.Thread(target=reminder_worker, daemon=True).start()
+
+# ----------------- Web Dashboard & API Endpoints ----------------- #
+
+@app.route("/", methods=['GET'])
+def index():
+    """Interactive Web Dashboard."""
+    return render_template("index.html")
+
+@app.route("/api/live_status", methods=['GET'])
+def api_live_status():
+    """Return currently ongoing class and next upcoming class."""
+    now = datetime.now()
+    day = now.strftime("%a").lower()
+    classes = get_classes_for_day(day, include_free=False)
+    
+    ongoing = None
+    next_up = None
+    
+    for c in classes:
+        try:
+            start_dt = datetime.strptime(c['Start'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
+            end_dt = datetime.strptime(c['End'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
+            
+            if start_dt <= now <= end_dt:
+                mins_left = int((end_dt - now).total_seconds() / 60)
+                ongoing = {**c, "mins_left": mins_left}
+            elif start_dt > now and next_up is None:
+                mins_until = int((start_dt - now).total_seconds() / 60)
+                next_up = {**c, "mins_until": mins_until}
+        except Exception:
+            pass
+            
+    return jsonify({
+        "now": now.strftime("%H:%M:%S"),
+        "day": day,
+        "ongoing": ongoing,
+        "next": next_up
+    })
+
+@app.route("/api/classes", methods=['GET'])
+def api_classes():
+    """Return schedule for a specific day or 'today'."""
+    raw_day = request.args.get('day', 'today').strip().lower()
+    if raw_day in ['today', 'tdy']:
+        day = datetime.now().strftime("%a").lower()
+    else:
+        day = sanitize_day(raw_day) or datetime.now().strftime("%a").lower()
+        
+    classes = get_classes_for_day(day, include_free=False)
+    return jsonify({"day": day, "classes": classes})
+
+@app.route("/api/faculty", methods=['GET'])
+def api_faculty():
+    """Return full faculty & course directory."""
+    return jsonify({"courses": get_all_courses()})
+
+# ----------------- Twilio WhatsApp Webhook ----------------- #
 
 @app.route("/whatsapp", methods=['POST'])
 def whatsapp_reply():

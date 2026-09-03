@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCA I Batch A — Timetable & Academic Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(22, 30, 49, 0.7);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --accent-glow: rgba(99, 102, 241, 0.25);
+      --success: #10b981;
+      --success-glow: rgba(16, 185, 129, 0.2);
+      --warning: #f59e0b;
+      --online: #06b6d4;
+      --lab: #ec4899;
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+    }
+
+    body {
+      background: radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
+                  radial-gradient(circle at 90% 80%, rgba(236, 72, 153, 0.08) 0%, transparent 40%),
+                  var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1100px;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--accent-glow);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #fff 40%, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .current-status-banner {
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9));
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 28px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 6px 14px;
+      border-radius: 8px;
+    }
+
+    .status-ongoing {
+      background: var(--success-glow);
+      color: #6ee7b7;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+
+    .pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      animation: pulse-ring 1.8s infinite cubic-bezier(0.66, 0, 0, 1);
+    }
+
+    @keyframes pulse-ring {
+      to { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+    }
+
+    /* Tabs Navigation */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      background: rgba(15, 23, 42, 0.6);
+      padding: 6px;
+      border-radius: 12px;
+      border: 1px solid var(--card-border);
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      flex: 1;
+      min-width: 100px;
+      padding: 10px 18px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .tab-btn:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .tab-btn.active {
+      color: #fff;
+      background: var(--accent);
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+
+    /* Cards Grid */
+    .classes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+    }
+
+    .class-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 20px;
+      backdrop-filter: blur(12px);
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .class-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(99, 102, 241, 0.4);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .class-card.ongoing {
+      border-color: var(--success);
+      box-shadow: 0 0 20px var(--success-glow);
+    }
+
+    .time-slot {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #38bdf8;
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      background: rgba(56, 189, 248, 0.1);
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+
+    .subject-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    .venue-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      color: #e2e8f0;
+      margin-top: 8px;
+    }
+
+    .faculty-info {
+      font-size: 0.88rem;
+      color: #cbd5e1;
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Faculty Section Table */
+    .faculty-table-container {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      overflow-x: auto;
+      backdrop-filter: blur(12px);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    th, td {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    th {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      background: rgba(15, 23, 42, 0.7);
+    }
+
+    td {
+      font-size: 0.95rem;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .course-code-pill {
+      font-family: monospace;
+      font-size: 0.85rem;
+      background: rgba(99, 102, 241, 0.15);
+      color: #a5b4fc;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+
+    footer {
+      margin-top: auto;
+      padding-top: 40px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    @media (max-width: 768px) {
+      h1 { font-size: 1.5rem; }
+      .current-status-banner { flex-direction: column; align-items: flex-start; }
+      .classes-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <span class="badge">Batch A • I Semester</span>
+        <h1>MCA Timetable & Academic Portal</h1>
+      </div>
+      <div style="text-align: right;">
+        <div id="live-clock" style="font-size: 1.1rem; font-weight: 700; color: #f8fafc;">--:--:--</div>
+        <div id="live-date" style="font-size: 0.85rem; color: var(--text-muted);">Loading...</div>
+      </div>
+    </header>
+
+    <!-- Real-time status banner -->
+    <div class="current-status-banner" id="status-card">
+      <div>
+        <span class="status-badge status-ongoing">
+          <span class="pulse"></span>
+          Current Class
+        </span>
+        <div id="ongoing-subject" style="font-size: 1.35rem; font-weight: 800; margin-top: 10px; color: #fff;">
+          Checking live schedule...
+        </div>
+        <div id="ongoing-details" style="font-size: 0.9rem; color: var(--text-muted); margin-top: 4px;">
+          --
+        </div>
+      </div>
+      <div id="countdown-badge" style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--card-border); padding: 12px 18px; border-radius: 12px; text-align: center;">
+        <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Upcoming Next</div>
+        <div id="next-subject" style="font-size: 1.1rem; font-weight: 700; color: #38bdf8; margin-top: 4px;">--</div>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('today')">📅 Today</button>
+      <button class="tab-btn" onclick="switchTab('mon')">Mon</button>
+      <button class="tab-btn" onclick="switchTab('tue')">Tue</button>
+      <button class="tab-btn" onclick="switchTab('wed')">Wed</button>
+      <button class="tab-btn" onclick="switchTab('thu')">Thu</button>
+      <button class="tab-btn" onclick="switchTab('fri')">Fri</button>
+      <button class="tab-btn" onclick="switchTab('faculty')">👨‍🏫 Faculty</button>
+    </div>
+
+    <!-- Classes Container -->
+    <div id="classes-view" class="classes-grid"></div>
+
+    <!-- Faculty Container (hidden by default) -->
+    <div id="faculty-view" class="faculty-table-container" style="display: none;">
+      <table>
+        <thead>
+          <tr>
+            <th>Course Code</th>
+            <th>Short</th>
+            <th>Course Name</th>
+            <th>Faculty</th>
+          </tr>
+        </thead>
+        <tbody id="faculty-table-body"></tbody>
+      </table>
+    </div>
+
+    <footer>
+      <p>MCA Timetable Automation • Connected to Telegram & WhatsApp Bots</p>
+    </footer>
+  </div>
+
+  <script>
+    let currentTab = 'today';
+
+    function updateTime() {
+      const now = new Date();
+      document.getElementById('live-clock').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      document.getElementById('live-date').textContent = now.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+    }
+    setInterval(updateTime, 1000);
+    updateTime();
+
+    async function fetchLiveStatus() {
+      try {
+        const res = await fetch('/api/live_status');
+        const data = await res.json();
+        
+        const ongoingEl = document.getElementById('ongoing-subject');
+        const detailsEl = document.getElementById('ongoing-details');
+        const nextEl = document.getElementById('next-subject');
+
+        if (data.ongoing) {
+          ongoingEl.textContent = data.ongoing.Subject;
+          detailsEl.textContent = `📍 ${data.ongoing.Venue} • Ends in ${data.ongoing.mins_left} min (${data.ongoing.End})`;
+        } else {
+          ongoingEl.textContent = "No class ongoing right now 🎉";
+          detailsEl.textContent = "Enjoy your break!";
+        }
+
+        if (data.next) {
+          nextEl.textContent = `${data.next.Subject} (${data.next.Start})`;
+        } else {
+          nextEl.textContent = "None left today";
+        }
+      } catch (e) {
+        console.error("Error fetching live status:", e);
+      }
+    }
+
+    async function loadClasses(day) {
+      const grid = document.getElementById('classes-view');
+      grid.innerHTML = '<div style="color: var(--text-muted);">Loading timetable...</div>';
+      
+      try {
+        const res = await fetch(`/api/classes?day=${day}`);
+        const data = await res.json();
+        
+        grid.innerHTML = '';
+        if (data.classes.length === 0) {
+          grid.innerHTML = '<div style="color: var(--text-muted); padding: 20px;">No classes scheduled for this day! 🎉</div>';
+          return;
+        }
+
+        data.classes.forEach(c => {
+          const card = document.createElement('div');
+          card.className = 'class-card';
+          
+          let venueIcon = '📍';
+          if (c.Venue === 'ONLINE') venueIcon = '🌐';
+          if (c.Venue === 'CIS LAB') venueIcon = '💻';
+
+          card.innerHTML = `
+            <div class="time-slot">🕒 ${c.Start} – ${c.End}</div>
+            <div class="subject-title">${c.Subject}</div>
+            <div class="venue-tag">${venueIcon} ${c.Venue}</div>
+            ${c.Faculty ? `<div class="faculty-info">👤 <span>${c.Faculty}</span></div>` : ''}
+          `;
+          grid.appendChild(card);
+        });
+      } catch (e) {
+        grid.innerHTML = '<div style="color: #ef4444;">Failed to load timetable.</div>';
+      }
+    }
+
+    async function loadFaculty() {
+      const tbody = document.getElementById('faculty-table-body');
+      tbody.innerHTML = '<tr><td colspan="4" style="color: var(--text-muted);">Loading faculty...</td></tr>';
+      
+      try {
+        const res = await fetch('/api/faculty');
+        const data = await res.json();
+        tbody.innerHTML = '';
+        
+        data.courses.forEach(c => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><span class="course-code-pill">${c.code}</span></td>
+            <td><strong>${c.short}</strong></td>
+            <td>${c.name}</td>
+            <td style="color: #6ee7b7;">${c.faculty}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="4" style="color: #ef4444;">Failed to load faculty directory.</td></tr>';
+      }
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      const activeBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick').includes(tab));
+      if (activeBtn) activeBtn.classList.add('active');
+
+      if (tab === 'faculty') {
+        document.getElementById('classes-view').style.display = 'none';
+        document.getElementById('faculty-view').style.display = 'block';
+        loadFaculty();
+      } else {
+        document.getElementById('classes-view').style.display = 'grid';
+        document.getElementById('faculty-view').style.display = 'none';
+        loadClasses(tab);
+      }
+    }
+
+    // Initial Load
+    fetchLiveStatus();
+    loadClasses('today');
+    setInterval(fetchLiveStatus, 30000);
+  </script>
+</body>
+</html>
