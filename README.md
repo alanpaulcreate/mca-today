@@ -59,3 +59,14 @@ Run both bots 24/7 with restart protection:
 ```bash
 docker-compose up -d --build
 ```
+
+---
+
+## ⏰ 24/7 Free Cloud Hosting (Prevent Sleep)
+
+Render's free tier spins down web services after 15 minutes of inactivity. Use the built-in `/ping` endpoint with a free uptime pinger (like [cron-job.org](https://cron-job.org) or [UptimeRobot](https://uptimerobot.com)):
+
+- **Target URL**: `https://<your-render-app>.onrender.com/ping`
+- **Schedule**: Every 10 or 14 minutes
+- **HTTP Method**: `GET`
+

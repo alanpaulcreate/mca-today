@@ -166,6 +166,16 @@ def api_faculty():
     """Return full faculty & course directory."""
     return jsonify({"courses": get_all_courses()})
 
+@app.route("/ping", methods=['GET'])
+@app.route("/health", methods=['GET'])
+def ping():
+    """Lightweight ping endpoint for uptime monitoring & cron jobs to prevent Render spin-down."""
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "service": "mca-bot-server"
+    }), 200
+
 # ----------------- Twilio WhatsApp Webhook ----------------- #
 
 @app.route("/whatsapp", methods=['POST'])
