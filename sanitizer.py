@@ -57,3 +57,14 @@ def sanitize_csv_field(val: str, max_length: int = 100) -> str:
     if cleaned and cleaned[0] in ('=', '+', '-', '@', '\t', '\r'):
         cleaned = "'" + cleaned
     return cleaned
+
+def get_ist_now():
+    """
+    Get current datetime explicitly in Indian Standard Time (IST: UTC+5:30).
+    Guarantees accurate class timing on cloud servers (like Render/Heroku/AWS)
+    regardless of host system timezone.
+    """
+    from datetime import datetime, timezone, timedelta
+    ist_offset = timezone(timedelta(hours=5, minutes=30))
+    return datetime.now(ist_offset).replace(tzinfo=None)
+

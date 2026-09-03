@@ -7,7 +7,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
 
 from timetable import get_classes_for_day, get_free_slots_for_day, format_classes, format_all_faculty
-from sanitizer import sanitize_offset, sanitize_day, sanitize_text
+from sanitizer import sanitize_offset, sanitize_day, sanitize_text, get_ist_now
 
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -110,13 +110,13 @@ async def faculty(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text(text, parse_mode="Markdown")
 
 async def today(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    day = datetime.now().strftime("%a").lower()
+    day = get_ist_now().strftime("%a").lower()
     classes = get_classes_for_day(day, include_free=False)
     if update.effective_message:
         await update.effective_message.reply_text(f"📅 Today:\n{format_classes(classes)}", parse_mode="Markdown")
 
 async def tomorrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    day = (datetime.now() + timedelta(days=1)).strftime("%a").lower()
+    day = (get_ist_now() + timedelta(days=1)).strftime("%a").lower()
     classes = get_classes_for_day(day, include_free=False)
     if update.effective_message:
         await update.effective_message.reply_text(f"📅 Tomorrow:\n{format_classes(classes)}", parse_mode="Markdown")
@@ -133,7 +133,7 @@ async def day_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text(f"📅 {clean_day.upper()}:\n{format_classes(classes)}", parse_mode="Markdown")
 
 async def next_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    now = datetime.now()
+    now = get_ist_now()
     day = now.strftime("%a").lower()
     classes = get_classes_for_day(day, include_free=False)
     for c in classes:
@@ -151,7 +151,7 @@ async def next_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text("No more classes today 🎉")
 
 async def free_slots(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    day = datetime.now().strftime("%a").lower()
+    day = get_ist_now().strftime("%a").lower()
     slots = get_free_slots_for_day(day)
     if update.effective_message:
         if slots:
@@ -173,7 +173,7 @@ async def week(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text(text, parse_mode="Markdown")
 
 async def now_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    now = datetime.now()
+    now = get_ist_now()
     day = now.strftime("%a").lower()
     classes = get_classes_for_day(day, include_free=False)
     for c in classes:
@@ -232,7 +232,7 @@ async def remind_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text(msg)
 
 async def reminder_job(context: ContextTypes.DEFAULT_TYPE):
-    now = datetime.now()
+    now = get_ist_now()
     day = now.strftime("%a").lower()
     classes = get_classes_for_day(day, include_free=False)
     

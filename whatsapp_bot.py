@@ -9,7 +9,7 @@ from twilio.rest import Client
 from dotenv import load_dotenv
 
 from timetable import get_classes_for_day, get_free_slots_for_day, format_classes, format_all_faculty, get_all_courses
-from sanitizer import sanitize_text, sanitize_phone_number, sanitize_offset, sanitize_day
+from sanitizer import sanitize_text, sanitize_phone_number, sanitize_offset, sanitize_day, get_ist_now
 
 load_dotenv()
 
@@ -64,7 +64,7 @@ def reminder_worker():
     
     while True:
         try:
-            now = datetime.now()
+            now = get_ist_now()
             today_str = now.strftime("%Y-%m-%d")
             day_abbr = now.strftime("%a").lower()
             classes = get_classes_for_day(day_abbr, include_free=False)
@@ -120,8 +120,8 @@ def index():
 
 @app.route("/api/live_status", methods=['GET'])
 def api_live_status():
-    """Return currently ongoing class and next upcoming class."""
-    now = datetime.now()
+    """Return currently ongoing class and next upcoming class in IST."""
+    now = get_ist_now()
     day = now.strftime("%a").lower()
     classes = get_classes_for_day(day, include_free=False)
     
@@ -134,8 +134,9 @@ def api_live_status():
             end_dt = datetime.strptime(c['End'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
             
             if start_dt <= now <= end_dt:
-                mins_left = int((end_dt - now).total_seconds() / 60)
-                ongoing = {**c, "mins_left": mins_left}
+                if ongoing is None:  # take the first matching (earliest) ongoing class
+                    mins_left = int((end_dt - now).total_seconds() / 60)
+                    ongoing = {**c, "mins_left": mins_left}
             elif start_dt > now and next_up is None:
                 mins_until = int((start_dt - now).total_seconds() / 60)
                 next_up = {**c, "mins_until": mins_until}
@@ -154,9 +155,9 @@ def api_classes():
     """Return schedule for a specific day or 'today'."""
     raw_day = request.args.get('day', 'today').strip().lower()
     if raw_day in ['today', 'tdy']:
-        day = datetime.now().strftime("%a").lower()
+        day = get_ist_now().strftime("%a").lower()
     else:
-        day = sanitize_day(raw_day) or datetime.now().strftime("%a").lower()
+        day = sanitize_day(raw_day) or get_ist_now().strftime("%a").lower()
         
     classes = get_classes_for_day(day, include_free=False)
     return jsonify({"day": day, "classes": classes})
@@ -175,6 +176,19 @@ def ping():
         "timestamp": datetime.now().isoformat(),
         "service": "mca-bot-server"
     }), 200
+
+@app.route("/api/debug", methods=['GET'])
+def api_debug():
+    """Debug endpoint: returns current IST time, resolved day, and today's classes."""
+    now = get_ist_now()
+    day = now.strftime("%a").lower()
+    classes = get_classes_for_day(day, include_free=False)
+    return jsonify({
+        "ist_now": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "day_resolved": day,
+        "class_count": len(classes),
+        "classes": classes
+    })
 
 # ----------------- Twilio WhatsApp Webhook ----------------- #
 
@@ -235,7 +249,7 @@ def whatsapp_reply():
 
     # 3. Free Slots
     elif clean_msg in ["free", "freeslot", "freeslots", "free slots"]:
-        day = datetime.now().strftime("%a").lower()
+        day = get_ist_now().strftime("%a").lower()
         free_slots = get_free_slots_for_day(day)
         if free_slots:
             text = "🏖️ *Free Slots Today:*\n"
@@ -248,12 +262,12 @@ def whatsapp_reply():
 
     # 4. Schedule Queries
     elif clean_msg in ['today', 'tdy']:
-        day = datetime.now().strftime("%a").lower()
+        day = get_ist_now().strftime("%a").lower()
         classes = get_classes_for_day(day, include_free=False)
         msg.body(f"📅 *Today:*\n{format_classes(classes)}")
         
     elif clean_msg in ['tomorrow', 'tmr']:
-        day = (datetime.now() + timedelta(days=1)).strftime("%a").lower()
+        day = (get_ist_now() + timedelta(days=1)).strftime("%a").lower()
         classes = get_classes_for_day(day, include_free=False)
         msg.body(f"📅 *Tomorrow:*\n{format_classes(classes)}")
         
@@ -267,7 +281,7 @@ def whatsapp_reply():
         msg.body(text)
         
     elif clean_msg == 'now':
-        now = datetime.now()
+        now = get_ist_now()
         day = now.strftime("%a").lower()
         classes = get_classes_for_day(day, include_free=False)
         found = False
@@ -287,7 +301,7 @@ def whatsapp_reply():
             msg.body("No class is currently ongoing. 🎉")
             
     elif clean_msg == 'next':
-        now = datetime.now()
+        now = get_ist_now()
         day = now.strftime("%a").lower()
         classes = get_classes_for_day(day, include_free=False)
         found = False
