@@ -1,22 +1,15 @@
 services:
   - type: web
-    name: mca-whatsapp-bot
+    name: mca-bot-server
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn whatsapp_bot:app --bind 0.0.0.0:$PORT
+    startCommand: python run.py
     envVars:
+      - key: TELEGRAM_TOKEN
+        sync: false
       - key: TWILIO_ACCOUNT_SID
         sync: false
       - key: TWILIO_AUTH_TOKEN
         sync: false
       - key: TWILIO_WHATSAPP_NUMBER
         value: whatsapp:+14155238886
-
-  - type: worker
-    name: mca-telegram-bot
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python bot.py
-    envVars:
-      - key: TELEGRAM_TOKEN
-        sync: false
