@@ -12,7 +12,8 @@ from sanitizer import sanitize_offset, sanitize_day, sanitize_text, get_ist_now
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 if not TOKEN:
-    raise ValueError("No TELEGRAM_TOKEN found in environment variables")
+    print("⚠️  TELEGRAM_TOKEN not set — Telegram bot will not start.")
+    import sys; sys.exit(0)
 REMINDERS_FILE = "reminders.json"
 
 # Stored as dict: { str(chat_id): offset_minutes }
@@ -267,7 +268,10 @@ def main():
     for d in ["mon","tue","wed","thu","fri","sat","sun"]:
         app.add_handler(CommandHandler(d, day_cmd))
     
-    app.job_queue.run_repeating(reminder_job, interval=60, first=10)
+    if app.job_queue is not None:
+        app.job_queue.run_repeating(reminder_job, interval=60, first=10)
+    else:
+        print("⚠️  job_queue unavailable (APScheduler not installed) — reminders disabled.")
     print("Telegram Bot running...")
     app.run_polling()
 
