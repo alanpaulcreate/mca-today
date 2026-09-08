@@ -94,6 +94,7 @@
     .badge-purple { background: var(--purple-glow); color: var(--purple-light); border: 1px solid rgba(109,93,252,0.3); }
     .badge-green  { background: var(--green-glow);  color: #6ee7b7;             border: 1px solid rgba(16,185,129,0.3); }
     .badge-cyan   { background: var(--cyan-glow);   color: var(--cyan);         border: 1px solid rgba(34,211,238,0.25); }
+    .badge-gray   { background: rgba(255,255,255,0.06); color: var(--text-muted); border: 1px solid var(--border); }
 
     .live-dot {
       width: 6px; height: 6px; border-radius: 50%; background: var(--green);
@@ -360,7 +361,7 @@
     <div class="header-left">
       <div class="badge-row">
         <span class="badge badge-purple">MCA &middot; Batch A</span>
-        <span class="badge badge-green"><span class="live-dot"></span> Live</span>
+        <span class="badge badge-green" id="header-live-badge"><span class="live-dot"></span> Live</span>
         <span class="badge badge-cyan">I Semester</span>
       </div>
       <h1>Academic<br>Timetable Portal</h1>
@@ -454,7 +455,11 @@
   setInterval(updateClock, 1000);
   updateClock();
 
-  function toMins(t) { var p = t.split(':'); return parseInt(p[0])*60+parseInt(p[1]); }
+  function toMins(t) {
+    if (!t || typeof t !== 'string') return 0;
+    var p = t.split(':');
+    return parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
+  }
 
   async function fetchLiveStatus() {
     try {
@@ -471,6 +476,7 @@
       var startEl = document.getElementById('progress-start');
       var leftEl = document.getElementById('progress-left');
       var endEl = document.getElementById('progress-end');
+      var headerBadge = document.getElementById('header-live-badge');
 
       if (data.ongoing) {
         banner.className = 'status-banner has-class';
@@ -485,39 +491,54 @@
         startEl.textContent = data.ongoing.Start;
         leftEl.textContent = data.ongoing.mins_left + ' min left';
         endEl.textContent = data.ongoing.End;
+        if (headerBadge) {
+          headerBadge.className = 'badge badge-green';
+          headerBadge.innerHTML = '<span class="live-dot"></span> Live';
+        }
       } else {
         banner.className = 'status-banner no-class';
-        labelEl.innerHTML = 'Break Time';
-        labelEl.className = 'status-label label-break';
-        subjEl.textContent = 'No class ongoing right now';
-        detailEl.textContent = 'Enjoy your free time!';
+        if (data.day === 'sat' || data.day === 'sun') {
+          labelEl.innerHTML = 'Weekend';
+          labelEl.className = 'status-label label-break';
+          subjEl.textContent = 'No classes scheduled today';
+          detailEl.textContent = 'Enjoy your weekend!';
+        } else {
+          labelEl.innerHTML = 'Break Time';
+          labelEl.className = 'status-label label-break';
+          subjEl.textContent = 'No class ongoing right now';
+          detailEl.textContent = 'Enjoy your free time!';
+        }
         progressEl.style.display = 'none';
+        if (headerBadge) {
+          headerBadge.className = 'badge badge-gray';
+          headerBadge.innerHTML = '<span style="width:6px;height:6px;border-radius:50%;background:var(--text-dim);display:inline-block"></span> No Live Class';
+        }
       }
 
       if (data.next) {
         nextSubEl.textContent = data.next.Subject;
         nextTimeEl.textContent = data.next.Start + '  |  in ' + data.next.mins_until + ' min';
       } else {
-        nextSubEl.textContent = 'None left today';
+        nextSubEl.textContent = (data.day === 'sat' || data.day === 'sun') ? 'No classes today' : 'None left today';
         nextTimeEl.textContent = '';
       }
     } catch(e) { console.error('Live status error:', e); }
   }
 
-  async function loadClasses(day) {
+  async function loadClasses(day, silent) {
     var grid = document.getElementById('classes-view');
-    var skelHtml = '<div class="class-card" style="pointer-events:none"><div class="card-inner"><div class="skeleton" style="width:100px;height:22px;margin-bottom:14px"></div><div class="skeleton" style="width:80%;height:18px;margin-bottom:10px"></div><div class="skeleton" style="width:60%;height:14px"></div></div></div>';
-    grid.innerHTML = skelHtml + skelHtml + skelHtml + skelHtml;
+    if (!silent) {
+      var skelHtml = '<div class="class-card" style="pointer-events:none"><div class="card-inner"><div class="skeleton" style="width:100px;height:22px;margin-bottom:14px"></div><div class="skeleton" style="width:80%;height:18px;margin-bottom:10px"></div><div class="skeleton" style="width:60%;height:14px"></div></div></div>';
+      grid.innerHTML = skelHtml + skelHtml + skelHtml + skelHtml;
+    }
 
     try {
-      var res = await fetch('/api/classes?day=' + day);
+      var [res, liveRes] = await Promise.all([
+        fetch('/api/classes?day=' + encodeURIComponent(day)),
+        fetch('/api/live_status')
+      ]);
       var data = await res.json();
-      var ongoingStart = null;
-      try {
-        var liveRes = await fetch('/api/live_status');
-        var ld = await liveRes.json();
-        if (ld.ongoing) ongoingStart = ld.ongoing.Start;
-      } catch(e2) {}
+      var ld = await liveRes.json();
 
       grid.innerHTML = '';
       if (!data.classes || data.classes.length === 0) {
@@ -525,9 +546,16 @@
         return;
       }
 
-      var now = new Date();
+      // Check if the timetable being viewed is actually TODAY's timetable
+      var isViewingToday = Boolean(ld && ld.day && data.day && ld.day.toLowerCase() === data.day.toLowerCase());
+
       data.classes.forEach(function(c, i) {
-        var isOngoing = ongoingStart && c.Start === ongoingStart;
+        // ONLY marked as ongoing/live if viewing TODAY and this exact class matches the current ongoing schedule
+        var isOngoing = false;
+        if (isViewingToday && ld && ld.ongoing) {
+          isOngoing = (c.Start === ld.ongoing.Start && c.End === ld.ongoing.End && c.Subject === ld.ongoing.Subject);
+        }
+
         var card = document.createElement('div');
         card.className = 'class-card fade-in' + (isOngoing ? ' ongoing' : '');
         card.style.animationDelay = (i * 0.07) + 's';
@@ -538,8 +566,8 @@
         var progHTML = '';
         if (isOngoing) {
           var total = toMins(c.End) - toMins(c.Start);
-          var elapsed = (now.getHours()*60+now.getMinutes()) - toMins(c.Start);
-          var pct = Math.min(100, Math.max(0, Math.round((elapsed/total)*100)));
+          var minsLeft = (typeof ld.ongoing.mins_left === 'number') ? ld.ongoing.mins_left : total;
+          var pct = Math.min(100, Math.max(0, Math.round(((total - minsLeft) / total) * 100)));
           progHTML = '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%"></div></div>';
         }
         card.innerHTML =
@@ -606,7 +634,12 @@
 
   fetchLiveStatus();
   loadClasses('today');
-  setInterval(fetchLiveStatus, 30000);
+  setInterval(function() {
+    fetchLiveStatus();
+    if (currentTab !== 'faculty') {
+      loadClasses(currentTab, true);
+    }
+  }, 30000);
 </script>
 </body>
 </html>

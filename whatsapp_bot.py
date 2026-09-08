@@ -133,12 +133,12 @@ def api_live_status():
             start_dt = datetime.strptime(c['Start'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
             end_dt = datetime.strptime(c['End'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
             
-            if start_dt <= now <= end_dt:
+            if start_dt <= now < end_dt:
                 if ongoing is None:  # take the first matching (earliest) ongoing class
-                    mins_left = int((end_dt - now).total_seconds() / 60)
+                    mins_left = max(1, int(round((end_dt - now).total_seconds() / 60)))
                     ongoing = {**c, "mins_left": mins_left}
             elif start_dt > now and next_up is None:
-                mins_until = int((start_dt - now).total_seconds() / 60)
+                mins_until = max(1, int(round((start_dt - now).total_seconds() / 60)))
                 next_up = {**c, "mins_until": mins_until}
         except Exception:
             pass
@@ -289,8 +289,8 @@ def whatsapp_reply():
             try:
                 start_time = datetime.strptime(c['Start'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
                 end_time = datetime.strptime(c['End'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
-                if start_time <= now <= end_time:
-                    mins_left = int((end_time - now).total_seconds() / 60)
+                if start_time <= now < end_time:
+                    mins_left = max(1, int(round((end_time - now).total_seconds() / 60)))
                     venue_text = f" @ {c['Venue']}" if c.get('Venue') and c['Venue'] != '-' else ""
                     msg.body(f"🟢 *Currently Ongoing:*\n\n*{c['Subject']}*{venue_text}\nEnds in {mins_left} mins ({c['End']})")
                     found = True
@@ -309,7 +309,7 @@ def whatsapp_reply():
             try:
                 start_time = datetime.strptime(c['Start'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
                 if start_time > now:
-                    mins = int((start_time - now).total_seconds() / 60)
+                    mins = max(1, int(round((start_time - now).total_seconds() / 60)))
                     venue_text = f"📍 {c['Venue']}" if c.get('Venue') and c['Venue'] != '-' else ""
                     msg.body(f"⏭️ Next: *{c['Subject']}* in {mins} min\n{venue_text} @ {c['Start']}")
                     found = True

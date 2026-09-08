@@ -141,7 +141,7 @@ async def next_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             class_time = datetime.strptime(c['Start'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
             if class_time > now:
-                mins = int((class_time - now).total_seconds() / 60)
+                mins = max(1, int(round((class_time - now).total_seconds() / 60)))
                 venue_text = f"📍 {c['Venue']} @ " if c.get('Venue') and c['Venue'] != '-' else ""
                 if update.effective_message:
                     await update.effective_message.reply_text(f"⏭️ Next: **{c['Subject']}** in {mins} min\n{venue_text}{c['Start']}", parse_mode="Markdown")
@@ -181,8 +181,8 @@ async def now_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             start_time = datetime.strptime(c['Start'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
             end_time = datetime.strptime(c['End'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
-            if start_time <= now <= end_time:
-                mins_left = int((end_time - now).total_seconds() / 60)
+            if start_time <= now < end_time:
+                mins_left = max(1, int(round((end_time - now).total_seconds() / 60)))
                 venue_text = f" @ {c['Venue']}" if c.get('Venue') and c['Venue'] != '-' else ""
                 if update.effective_message:
                     await update.effective_message.reply_text(f"🟢 **Currently Ongoing:**\n\n**{c['Subject']}**{venue_text}\nEnds in {mins_left} mins ({c['End']})", parse_mode="Markdown")
