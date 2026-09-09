@@ -1,9 +1,9 @@
-services:
+﻿services:
   - type: web
     name: mca-bot-server
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python run.py
+    startCommand: python app.py
     envVars:
       - key: TELEGRAM_TOKEN
         sync: false
@@ -12,4 +12,4 @@ services:
       - key: TWILIO_AUTH_TOKEN
         sync: false
       - key: TWILIO_WHATSAPP_NUMBER
-        value: whatsapp:+14155238886
+        value: "whatsapp:+14155238886"
