@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
   <style>
-    /* Pure "No Box" Design: Clean Open Timeline, Zero Cards/Containers */
+    /* Clean "No Box" Design & Pure SVG Icons (Zero Emojis) */
     :root, [data-theme="dark"] {
       --bg: #0a0e0b; --text: #f0f4f0; --muted: #9aa89b; --dim: #5c6b5e;
       --teal: #14b8a6; --teal-glow: rgba(20, 184, 166, 0.4);
@@ -22,9 +22,9 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 36px 20px 80px; transition: .2s; }
     .content-flow { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px; }
-    .icon { width: 15px; height: 15px; stroke-width: 2; stroke: currentColor; fill: none; stroke-linecap: round; stroke-linejoin: round; vertical-align: middle; }
+    .icon { width: 14px; height: 14px; stroke-width: 2; stroke: currentColor; fill: none; stroke-linecap: round; stroke-linejoin: round; vertical-align: middle; }
 
-    /* Clean Open Header (No boxes, no pill containers) */
+    /* Clean Open Header (Zero boxes, pure typography) */
     header { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; gap: 16px; }
     .brand-title { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px; line-height: 1.1; }
     .brand-sub { font-size: 0.82rem; color: var(--muted); margin-top: 4px; }
@@ -33,17 +33,17 @@
     .live-clock { font-family: 'JetBrains Mono', monospace; font-weight: 600; display: flex; align-items: center; gap: 8px; color: var(--text); }
     .pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 8px var(--teal); animation: pulse 2s infinite; }
     @keyframes pulse { 50% { opacity: 0.3; } }
-    .text-link { color: var(--muted); text-decoration: none; font-weight: 600; background: none; border: none; font-family: inherit; font-size: inherit; cursor: pointer; transition: color .15s; }
+    .text-link { color: var(--muted); text-decoration: none; font-weight: 600; background: none; border: none; font-family: inherit; font-size: inherit; cursor: pointer; transition: color .15s; display: inline-flex; align-items: center; gap: 5px; }
     .text-link:hover { color: var(--teal); }
-    .text-link.active-tg { color: var(--teal); display: inline-flex; align-items: center; gap: 5px; }
+    .text-link.active-tg { color: var(--teal); }
 
-    /* Realtime Ticker (Open Typography Line) */
+    /* Realtime Ticker */
     .realtime-ticker { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 1px dashed var(--line); }
     .ticker-ongoing { display: flex; align-items: center; gap: 10px; font-size: 0.95rem; font-weight: 700; cursor: pointer; }
     .ticker-ongoing:hover { color: var(--teal); }
     .ticker-next { font-size: 0.8rem; color: var(--muted); }
 
-    /* Clean Underline Day Selector (No boxes, pure underline tabs) */
+    /* Clean Underline Day Tabs (Zero boxes) */
     .day-strip { display: flex; gap: 24px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
     .day-strip::-webkit-scrollbar { display: none; }
     .day-tab { padding: 8px 0; border: none; background: transparent; color: var(--muted); font-family: inherit; font-size: 0.9rem; font-weight: 600; cursor: pointer; position: relative; white-space: nowrap; transition: color .15s; }
@@ -51,15 +51,14 @@
     .day-tab.active { color: var(--teal); }
     .day-tab.active::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--teal); box-shadow: 0 0 8px var(--teal-glow); }
 
-    /* Open Search Line (No border box, just bottom underline) */
+    /* Open Search Line (Underline only) */
     .search-row { position: relative; }
     .search-row .icon { position: absolute; left: 0; top: 50%; transform: translateY(-50%); color: var(--dim); }
     .search-field { width: 100%; padding: 8px 10px 8px 26px; border: none; border-bottom: 1px solid var(--line); background: transparent; color: var(--text); font-family: inherit; font-size: 0.88rem; outline: none; transition: border-color .15s; }
     .search-field:focus { border-bottom-color: var(--teal); }
 
-    /* Vertical Timeline Spine (Connected nodes, ZERO boxes) */
+    /* Vertical Timeline Spine (Pure nodes, zero container boxes) */
     .timeline-stream { display: flex; flex-direction: column; position: relative; padding-left: 28px; }
-    /* The spine rail */
     .timeline-stream::before { content: ''; position: absolute; left: 6px; top: 12px; bottom: 12px; width: 2px; background: var(--line); }
 
     .timeline-node {
@@ -73,7 +72,6 @@
     }
     .timeline-node:hover { transform: translateX(4px); }
 
-    /* Circular Node Node on the Spine */
     .timeline-node::before {
       content: '';
       position: absolute;
@@ -105,10 +103,10 @@
     .timeline-node:hover .node-title { color: var(--teal); }
     
     .node-meta { display: flex; gap: 16px; font-size: 0.82rem; color: var(--dim); flex-wrap: wrap; }
-    .node-meta span { display: inline-flex; align-items: center; gap: 4px; }
+    .node-meta span { display: inline-flex; align-items: center; gap: 5px; }
 
     /* Minimalist Modal Drawer (Clean backdrop, no chunky borders) */
-    .scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); display: none; place-items: center; z-index: 100; padding: 20px; }
+    .scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); display: none; place-items: center; z-index: 100; padding: 20px; }
     .scrim.open { display: grid; }
     .sheet { background: var(--bg); border: 1px solid var(--line); border-radius: 20px; width: 100%; max-width: 500px; padding: 32px; display: flex; flex-direction: column; gap: 20px; box-shadow: 0 25px 50px rgba(0,0,0,0.5); }
     .sheet-head { display: flex; justify-content: space-between; align-items: center; }
@@ -134,7 +132,7 @@
 
   <div class="content-flow">
     
-    <!-- Open Editorial Header -->
+    <!-- Open Editorial Header (No emojis) -->
     <header>
       <div>
         <h1 class="brand-title">MCA Batch A</h1>
@@ -142,8 +140,14 @@
       </div>
       <div class="nav-actions">
         <div class="live-clock"><span class="pulse-dot"></span><span id="clock-txt">--:--:--</span></div>
-        <button class="text-link" onclick="toggleTheme()" id="theme-btn">Theme</button>
-        <button class="text-link" onclick="openDirectory()">Directory</button>
+        <button class="text-link" onclick="toggleTheme()" id="theme-btn">
+          <svg class="icon"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/></svg>
+          Theme
+        </button>
+        <button class="text-link" onclick="openDirectory()">
+          <svg class="icon"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          Directory
+        </button>
         <a href="https://t.me/Mcatimetablebot" target="_blank" class="text-link active-tg">
           <svg class="icon"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           Telegram
@@ -151,7 +155,7 @@
       </div>
     </header>
 
-    <!-- Open Realtime Ticker Line (Clickable) -->
+    <!-- Open Realtime Ticker Line -->
     <div class="realtime-ticker">
       <div class="ticker-ongoing" onclick="openActiveModal()">
         <span style="color:var(--teal);" id="ticker-dot">&bull;</span>
@@ -176,7 +180,7 @@
       <input type="text" class="search-field" id="search-input" placeholder="Type to filter lectures or faculty..." oninput="filterNodes(this.value)">
     </div>
 
-    <!-- Connected Vertical Timeline Spine (Zero Boxes) -->
+    <!-- Connected Vertical Timeline Spine -->
     <main class="timeline-stream" id="timeline-stream"></main>
 
     <!-- Clean Footer -->
@@ -209,7 +213,7 @@
         <div class="sheet-line" id="modal-live-row" style="display:none;"><span>Status</span><strong style="color:var(--teal);" id="modal-live">Ongoing</strong></div>
       </div>
       <button class="btn-sheet-action" onclick="copyAlert('/remind_on 10')">
-        Set Telegram Reminder (`/remind_on 10`)
+        Set Telegram Reminder (/remind_on 10)
       </button>
     </div>
   </div>
@@ -244,7 +248,7 @@
     const tick = () => $('clock-txt').textContent = new Date().toLocaleTimeString('en-IN', {hour12:false});
     setInterval(tick, 1000); tick();
 
-    const copyAlert = cmd => navigator.clipboard.writeText(cmd).then(() => alert(`Copied "${cmd}"!\nSend to @Mcatimetablebot on Telegram.`));
+    const copyAlert = cmd => navigator.clipboard.writeText(cmd).then(() => alert('Copied ' + cmd + '!\nSend to @Mcatimetablebot on Telegram.'));
 
     // Modal Sheet Handlers
     const openSheet = id => $(id).classList.add('open');
@@ -307,7 +311,7 @@
           $('ticker-ongoing-txt').textContent = d.day === 'sat' || d.day === 'sun' ? 'Weekend' : 'Interval / Recess';
         }
 
-        $('ticker-next-txt').textContent = d.next ? `Next: ${d.next.FullName || d.next.Subject} (${d.next.Start})` : 'All done today 🎉';
+        $('ticker-next-txt').textContent = d.next ? `Next: ${d.next.FullName || d.next.Subject} (${d.next.Start})` : 'All classes completed today';
       } catch (err) { console.error(err); }
     }
 
@@ -337,8 +341,15 @@
             </div>
             <div class="node-title">${c.FullName || c.Subject}</div>
             <div class="node-meta">
-              <span>📍 ${c.Venue && c.Venue !== '-' ? c.Venue : 'Classroom'}</span>
-              ${c.Faculty ? `<span>👤 ${c.Faculty}</span>` : ''}
+              <span>
+                <svg class="icon"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                ${c.Venue && c.Venue !== '-' ? c.Venue : 'Classroom'}
+              </span>
+              ${c.Faculty ? `
+              <span>
+                <svg class="icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                ${c.Faculty}
+              </span>` : ''}
             </div>
           </div>
         `;

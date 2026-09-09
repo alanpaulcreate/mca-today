@@ -6,7 +6,7 @@ CSV_COURSES = "courses.csv"
 TIME_REGEX = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 COURSES_CACHE = None
 
-# --- Sanitization & IST Helpers (Combined from sanitizer) --- #
+# --- Sanitization & IST Helpers --- #
 def get_ist_now():
     """Current datetime in Indian Standard Time (IST, UTC+5:30)."""
     return datetime.now(timezone(timedelta(hours=5, minutes=30))).replace(tzinfo=None)
@@ -34,11 +34,11 @@ def sanitize_chat_id(raw_id) -> str:
     s = str(raw_id).strip()
     return s if re.fullmatch(r"-?\d{1,20}", s) else ""
 
-# --- JSON File Store Helper --- #
+# --- JSON Store Helper --- #
 def load_store(file_path: str) -> dict:
     if not os.path.exists(file_path): return {}
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             d = json.load(f)
             if isinstance(d, dict): return {k: sanitize_offset(v) for k, v in d.items() if k}
             return {x: 10 for x in d if x}
@@ -46,7 +46,7 @@ def load_store(file_path: str) -> dict:
 
 def save_store(file_path: str, data: dict):
     try:
-        with open(file_path, 'w') as f: json.dump(data, f, indent=2)
+        with open(file_path, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2)
     except Exception as e: print(f"Error saving {file_path}: {e}")
 
 # --- Course & Timetable Logic --- #
@@ -113,20 +113,20 @@ def get_free_slots_for_day(day):
     return [r for r in get_all_classes(include_free=True) if r["Day"].lower() == clean and is_free_slot(r)] if clean else []
 
 def format_classes(classes):
-    if not classes: return "No classes scheduled 🎉"
+    if not classes: return "No classes scheduled."
     res = []
     for c in classes:
         venue = f" @ {c['Venue']}" if c.get('Venue') and c['Venue'] != '-' else ""
         fac = f" ({c['Faculty']})" if c.get('Faculty') else ""
-        res.append(f"• {c['Start']}-{c['End']} : *{c.get('FullName') or c['Subject']}*{venue}{fac}")
+        res.append(f"• {c['Start']}-{c['End']} : {c.get('FullName') or c['Subject']}{venue}{fac}")
     return "\n".join(res)
 
 def format_all_faculty():
     courses = get_all_courses()
     if not courses: return "No faculty details available."
-    return "👨‍🏫 *Faculty & Courses:*\n\n" + "\n".join([f"• *{c['short']}* ({c['code']}): {c['name']}\n  👤 *{c['faculty']}*\n" for c in courses])
+    return "<b>Faculty & Courses Directory:</b>\n\n" + "\n".join([f"• <b>{c['short']}</b> ({c['code']}): {c['name']}\n  Faculty: {c['faculty']}\n" for c in courses])
 
-# --- Shared Live Session Telemetry (Used by Telegram, Web API & WhatsApp) --- #
+# --- Shared Live Telemetry --- #
 def get_live_session_info():
     now = get_ist_now()
     day = now.strftime("%a").lower()
