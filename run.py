@@ -1,46 +1,37 @@
-import os
-import subprocess
-import sys
-import time
+import os, subprocess, sys, time
+from dotenv import load_dotenv
+
+load_dotenv()
+os.environ["PYTHONUNBUFFERED"] = "1"
+
+def start_cmd(cmd, name):
+    print(f"🚀 Starting {name}...")
+    return subprocess.Popen(cmd)
 
 def run():
-    print("🚀 Starting Unified MCA Bot Manager...")
-    
-    # 1. Start Telegram Bot process if TELEGRAM_TOKEN exists
-    telegram_proc = None
-    if os.getenv("TELEGRAM_TOKEN"):
-        print("🤖 Starting Telegram Bot...")
-        telegram_proc = subprocess.Popen([sys.executable, "bot.py"])
-    else:
-        print("⚠️ TELEGRAM_TOKEN not found. Skipping Telegram Bot.")
-
-    # 2. Start WhatsApp Flask Webhook & Dashboard via Gunicorn
+    token = os.getenv("TELEGRAM_TOKEN", "").strip()
     port = os.getenv("PORT", "5000")
-    print(f"🌐 Starting Web & WhatsApp server on port {port}...")
-    web_cmd = [
-        "gunicorn",
-        "--bind", f"0.0.0.0:{port}",
-        "--workers", "1",
-        "--threads", "4",
-        "whatsapp_bot:app"
+    
+    tg_cmd = [sys.executable, "-u", "bot.py"] if token else None
+    web_cmd = [sys.executable, "-u", "whatsapp_bot.py"] if sys.platform.startswith("win") else [
+        "gunicorn", "--bind", f"0.0.0.0:{port}", "--workers", "1", "--threads", "4", "whatsapp_bot:app"
     ]
     
+    tg_proc = start_cmd(tg_cmd, f"Telegram Bot (@Mcatimetablebot)") if tg_cmd else (print("⚠️ TELEGRAM_TOKEN not set in environment!") or None)
+    web_proc = start_cmd(web_cmd, f"Web Server on port {port}")
+
     try:
-        web_proc = subprocess.Popen(web_cmd)
-        
-        # Monitor processes
         while True:
             time.sleep(5)
-            if telegram_proc and telegram_proc.poll() is not None:
-                print("⚠️ Telegram bot exited unexpectedly! Restarting...")
-                telegram_proc = subprocess.Popen([sys.executable, "bot.py"])
+            if tg_cmd and (not tg_proc or tg_proc.poll() is not None):
+                print(f"⚠️ Telegram bot exited ({tg_proc.poll() if tg_proc else 'N/A'}). Restarting in 5s...")
+                time.sleep(5)
+                tg_proc = start_cmd(tg_cmd, "Telegram Bot")
             if web_proc.poll() is not None:
-                print("🚨 Web server stopped! Exiting runner.")
+                print(f"🚨 Web server stopped ({web_proc.poll()}). Exiting.")
                 break
     except KeyboardInterrupt:
-        print("Stopping bots...")
-        if telegram_proc:
-            telegram_proc.terminate()
+        if tg_proc: tg_proc.terminate()
         web_proc.terminate()
 
 if __name__ == "__main__":

@@ -1,279 +1,149 @@
-import os
-import json
-import re
+import os, logging
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
 
-from timetable import get_classes_for_day, get_free_slots_for_day, format_classes, format_all_faculty
-from sanitizer import sanitize_offset, sanitize_day, sanitize_text, get_ist_now
+from timetable import (
+    get_classes_for_day, get_free_slots_for_day, format_classes, format_all_faculty,
+    get_live_session_info, sanitize_offset, sanitize_day, sanitize_chat_id, sanitize_text,
+    get_ist_now, load_store, save_store
+)
+
+logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 if not TOKEN:
-    print("⚠️  TELEGRAM_TOKEN not set — Telegram bot will not start.")
+    print("⚠️ TELEGRAM_TOKEN not set — Telegram bot exiting.")
     import sys; sys.exit(0)
+
 REMINDERS_FILE = "reminders.json"
+USER_REMINDERS = load_store(REMINDERS_FILE)
+SENT_REMINDERS = set()
 
-# Stored as dict: { str(chat_id): offset_minutes }
-USER_REMINDERS = {}
-
-def sanitize_chat_id(raw_id) -> str:
-    """Validate that chat_id is a numeric integer string (Telegram chat ID)."""
-    s = str(raw_id).strip()
-    return s if re.fullmatch(r"-?\d{1,20}", s) else ""
-
-def load_reminders():
-    global USER_REMINDERS
-    sanitized = {}
-    if os.path.exists(REMINDERS_FILE):
-        try:
-            with open(REMINDERS_FILE, 'r') as f:
-                data = json.load(f)
-                if isinstance(data, list):
-                    for uid in data:
-                        clean_id = sanitize_chat_id(uid)
-                        if clean_id:
-                            sanitized[clean_id] = 10
-                elif isinstance(data, dict):
-                    for k, v in data.items():
-                        clean_id = sanitize_chat_id(k)
-                        if clean_id:
-                            sanitized[clean_id] = sanitize_offset(v)
-            USER_REMINDERS = sanitized
-        except Exception as e:
-            print(f"Error loading reminders: {e}")
-
-def save_reminders():
-    try:
-        with open(REMINDERS_FILE, 'w') as f:
-            json.dump(USER_REMINDERS, f, indent=2)
-    except Exception as e:
-        print(f"Error saving reminders: {e}")
-
-load_reminders()
+async def reply(update: Update, text: str, markup=None):
+    if update.effective_message:
+        await update.effective_message.reply_text(text, reply_markup=markup, parse_mode="Markdown")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("📅 Today", callback_data='today'),
-         InlineKeyboardButton("📅 Tomorrow", callback_data='tomorrow')],
-        [InlineKeyboardButton("🗓️ This Week", callback_data='week'),
-         InlineKeyboardButton("🕒 What's Now?", callback_data='now')],
-        [InlineKeyboardButton("⏭️ Next Class", callback_data='next'),
-         InlineKeyboardButton("☕ Free Slots", callback_data='free')],
+    kb = [
+        [InlineKeyboardButton("📅 Today", callback_data='today'), InlineKeyboardButton("📅 Tomorrow", callback_data='tomorrow')],
+        [InlineKeyboardButton("🗓️ This Week", callback_data='week'), InlineKeyboardButton("🕒 What's Now?", callback_data='now')],
+        [InlineKeyboardButton("⏭️ Next Class", callback_data='next'), InlineKeyboardButton("☕ Free Slots", callback_data='free')],
         [InlineKeyboardButton("👨‍🏫 Faculty & Courses", callback_data='faculty')]
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    text = (
-        "Hey! I'm your Timetable Bot 📅\n\n"
-        "Use the buttons below or commands:\n"
-        "/today - Today's classes\n"
-        "/tomorrow - Tomorrow's classes\n"
-        "/week - Entire week's timetable\n"
-        "/now - Currently ongoing class\n"
-        "/next - Next class\n"
-        "/free - Today's free slots\n"
-        "/faculty - Course codes & teachers\n"
-        "/remind_on [mins] - e.g. `/remind_on 15` (default 10m)\n"
-        "/remind_off - Stop reminders\n"
-        "/remind_status - Check reminder status\n"
-        "You can also use /mon, /tue, etc."
-    )
-    if update.effective_message:
-        await update.effective_message.reply_text(text, reply_markup=reply_markup)
-
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    clean_data = sanitize_text(query.data, max_length=20)
-    
-    if clean_data == 'today':
-        await today(update, context)
-    elif clean_data == 'tomorrow':
-        await tomorrow(update, context)
-    elif clean_data == 'week':
-        await week(update, context)
-    elif clean_data == 'next':
-        await next_class(update, context)
-    elif clean_data == 'now':
-        await now_class(update, context)
-    elif clean_data == 'free':
-        await free_slots(update, context)
-    elif clean_data == 'faculty':
-        await faculty(update, context)
-
-async def faculty(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = format_all_faculty()
-    if update.effective_message:
-        await update.effective_message.reply_text(text, parse_mode="Markdown")
+    txt = ("Hey! I'm your Timetable Bot 📅\n\nCommands:\n"
+           "/today, /tomorrow, /week, /now, /next, /free, /faculty\n"
+           "/remind_on [mins] - e.g. `/remind_on 10`\n"
+           "/remind_off, /remind_status\nOr use /mon, /tue, etc.")
+    await reply(update, txt, InlineKeyboardMarkup(kb))
 
 async def today(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    day = get_ist_now().strftime("%a").lower()
-    classes = get_classes_for_day(day, include_free=False)
-    if update.effective_message:
-        await update.effective_message.reply_text(f"📅 Today:\n{format_classes(classes)}", parse_mode="Markdown")
+    d = get_ist_now().strftime("%a").lower()
+    await reply(update, f"📅 **Today**:\n{format_classes(get_classes_for_day(d))}")
 
 async def tomorrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    day = (get_ist_now() + timedelta(days=1)).strftime("%a").lower()
-    classes = get_classes_for_day(day, include_free=False)
-    if update.effective_message:
-        await update.effective_message.reply_text(f"📅 Tomorrow:\n{format_classes(classes)}", parse_mode="Markdown")
+    d = (get_ist_now() + timedelta(days=1)).strftime("%a").lower()
+    await reply(update, f"📅 **Tomorrow**:\n{format_classes(get_classes_for_day(d))}")
 
 async def day_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    raw_text = update.message.text if update.message else ""
-    raw_day = raw_text.lstrip("/").strip()
-    clean_day = sanitize_day(raw_day)
-    if not clean_day:
-        return
-        
-    classes = get_classes_for_day(clean_day, include_free=False)
-    if update.effective_message:
-        await update.effective_message.reply_text(f"📅 {clean_day.upper()}:\n{format_classes(classes)}", parse_mode="Markdown")
-
-async def next_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    now = get_ist_now()
-    day = now.strftime("%a").lower()
-    classes = get_classes_for_day(day, include_free=False)
-    for c in classes:
-        try:
-            class_time = datetime.strptime(c['Start'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
-            if class_time > now:
-                mins = max(1, int(round((class_time - now).total_seconds() / 60)))
-                venue_text = f"📍 {c['Venue']} @ " if c.get('Venue') and c['Venue'] != '-' else ""
-                if update.effective_message:
-                    await update.effective_message.reply_text(f"⏭️ Next: **{c['Subject']}** in {mins} min\n{venue_text}{c['Start']}", parse_mode="Markdown")
-                return
-        except Exception:
-            pass
-    if update.effective_message:
-        await update.effective_message.reply_text("No more classes today 🎉")
-
-async def free_slots(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    day = get_ist_now().strftime("%a").lower()
-    slots = get_free_slots_for_day(day)
-    if update.effective_message:
-        if slots:
-            text = "🏖️ **Free Slots Today:**\n"
-            for s in slots:
-                text += f"☕ {s['Start']} - {s['End']}\n"
-            await update.effective_message.reply_text(text, parse_mode="Markdown")
-        else:
-            await update.effective_message.reply_text("No designated free slots today! 💪")
-
-async def week(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-    text = "🗓️ **Weekly Timetable**\n\n"
-    for day in days:
-        classes = get_classes_for_day(day, include_free=False)
-        if classes:
-            text += f"*{day.capitalize()}*:\n{format_classes(classes)}\n"
-    if update.effective_message:
-        await update.effective_message.reply_text(text, parse_mode="Markdown")
+    clean = sanitize_day((update.message.text or "").lstrip("/").strip())
+    if clean: await reply(update, f"📅 **{clean.upper()}**:\n{format_classes(get_classes_for_day(clean))}")
 
 async def now_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    now = get_ist_now()
-    day = now.strftime("%a").lower()
-    classes = get_classes_for_day(day, include_free=False)
-    for c in classes:
-        try:
-            start_time = datetime.strptime(c['Start'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
-            end_time = datetime.strptime(c['End'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
-            if start_time <= now < end_time:
-                mins_left = max(1, int(round((end_time - now).total_seconds() / 60)))
-                venue_text = f" @ {c['Venue']}" if c.get('Venue') and c['Venue'] != '-' else ""
-                if update.effective_message:
-                    await update.effective_message.reply_text(f"🟢 **Currently Ongoing:**\n\n**{c['Subject']}**{venue_text}\nEnds in {mins_left} mins ({c['End']})", parse_mode="Markdown")
-                return
-        except Exception:
-            pass
-    if update.effective_message:
-        await update.effective_message.reply_text("No class is currently ongoing. 🎉")
+    c = get_live_session_info().get('ongoing')
+    if c:
+        venue = f" @ {c['Venue']}" if c.get('Venue') and c['Venue'] != '-' else ""
+        fac = f"\n👤 Faculty: {c['Faculty']}" if c.get('Faculty') else ""
+        await reply(update, f"🟢 **Ongoing:**\n\n**{c.get('FullName') or c['Subject']}**{venue}{fac}\nEnds in {c['mins_left']} mins ({c['End']})")
+    else:
+        await reply(update, "No class is currently ongoing. 🎉")
+
+async def next_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    c = get_live_session_info().get('next')
+    if c:
+        venue = f"📍 {c['Venue']} @ " if c.get('Venue') and c['Venue'] != '-' else ""
+        fac = f"\n👤 Faculty: {c['Faculty']}" if c.get('Faculty') else ""
+        await reply(update, f"⏭️ Next: **{c.get('FullName') or c['Subject']}** in {c['mins_until']} min\n{venue}{c['Start']}{fac}")
+    else:
+        await reply(update, "No more classes today 🎉")
+
+async def free_slots(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    slots = get_free_slots_for_day(get_ist_now().strftime("%a").lower())
+    await reply(update, "🏖️ **Free Slots Today:**\n" + "\n".join([f"☕ {s['Start']} - {s['End']}" for s in slots]) if slots else "No designated free slots today! 💪")
+
+async def faculty(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await reply(update, format_all_faculty())
+
+async def week(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    res = ["🗓️ **Weekly Timetable**\n"]
+    for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]:
+        cls = get_classes_for_day(d)
+        if cls: res.append(f"*{d.capitalize()}*:\n{format_classes(cls)}\n")
+    await reply(update, "\n".join(res))
 
 async def remind_on(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = sanitize_chat_id(update.effective_chat.id if update.effective_chat else "")
-    if not chat_id:
-        return
-        
-    raw_arg = context.args[0] if context.args else 10
-    offset = sanitize_offset(raw_arg, default=10)
-    
-    USER_REMINDERS[chat_id] = offset
-    save_reminders()
-    if update.effective_message:
-        await update.effective_message.reply_text(f"✅ Reminders ON! I'll ping you **{offset} minutes** before each class.")
+    cid = sanitize_chat_id(update.effective_chat.id if update.effective_chat else "")
+    if not cid: return
+    offset = sanitize_offset(context.args[0] if context.args else 10)
+    USER_REMINDERS[cid] = offset
+    save_store(REMINDERS_FILE, USER_REMINDERS)
+    await reply(update, f"✅ Reminders ON! I'll alert you **{offset} minutes** before class.")
 
 async def remind_off(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = sanitize_chat_id(update.effective_chat.id if update.effective_chat else "")
-    if not chat_id:
-        return
-        
-    if chat_id in USER_REMINDERS:
-        del USER_REMINDERS[chat_id]
-        save_reminders()
-        msg = "🔕 Reminders OFF"
-    else:
-        msg = "ℹ️ Reminders are already disabled."
-    if update.effective_message:
-        await update.effective_message.reply_text(msg)
+    cid = sanitize_chat_id(update.effective_chat.id if update.effective_chat else "")
+    if cid in USER_REMINDERS:
+        del USER_REMINDERS[cid]
+        save_store(REMINDERS_FILE, USER_REMINDERS)
+        await reply(update, "🔕 Reminders OFF")
+    else: await reply(update, "ℹ️ Reminders are already disabled.")
 
 async def remind_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = sanitize_chat_id(update.effective_chat.id if update.effective_chat else "")
-    if not chat_id:
-        return
-        
-    if chat_id in USER_REMINDERS:
-        offset = USER_REMINDERS[chat_id]
-        msg = f"🔔 Reminders are **ON** ({offset} minutes before class).\nUse `/remind_on <mins>` to change or `/remind_off` to disable."
-    else:
-        msg = "🔕 Reminders are **OFF**.\nUse `/remind_on [mins]` to activate alerts."
-    if update.effective_message:
-        await update.effective_message.reply_text(msg)
+    cid = sanitize_chat_id(update.effective_chat.id if update.effective_chat else "")
+    offset = USER_REMINDERS.get(cid)
+    await reply(update, f"🔔 Reminders are **ON** ({offset}m before class).\nUse `/remind_on <mins>` or `/remind_off`." if offset else "🔕 Reminders are **OFF**.\nUse `/remind_on [mins]` to activate.")
+
+ACTION_MAP = {'today': today, 'tomorrow': tomorrow, 'week': week, 'next': next_class, 'now': now_class, 'free': free_slots, 'faculty': faculty}
+
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+    fn = ACTION_MAP.get(sanitize_text(update.callback_query.data, 20))
+    if fn: await fn(update, context)
 
 async def reminder_job(context: ContextTypes.DEFAULT_TYPE):
+    global SENT_REMINDERS
     now = get_ist_now()
-    day = now.strftime("%a").lower()
-    classes = get_classes_for_day(day, include_free=False)
+    today_str = now.strftime("%Y-%m-%d")
+    classes = get_classes_for_day(now.strftime("%a").lower())
     
-    for chat_id, offset in USER_REMINDERS.items():
-        check_time = (now + timedelta(minutes=int(offset))).strftime("%H:%M")
+    for cid, offset in list(USER_REMINDERS.items()):
         for c in classes:
-            if c['Start'] == check_time:
-                venue_text = f"\n📍 {c['Venue']}" if c.get('Venue') and c['Venue'] != '-' else ""
-                try:
-                    await context.bot.send_message(
-                        chat_id,
-                        f"⏰ Reminder: **{c['Subject']}** starts in {offset} min{venue_text}",
-                        parse_mode="Markdown"
-                    )
-                except Exception as e:
-                    print(f"Failed to send reminder to {chat_id}: {e}")
+            try:
+                c_dt = datetime.strptime(c['Start'], "%H:%M").replace(year=now.year, month=now.month, day=now.day, second=0, microsecond=0)
+                diff = (c_dt - now).total_seconds()
+                key = (today_str, c['Start'], str(cid))
+                if 0 <= (int(offset) * 60 - diff) <= 60 and diff > 0 and key not in SENT_REMINDERS:
+                    venue = f"\n📍 Venue: {c['Venue']}" if c.get('Venue') and c['Venue'] != '-' else ""
+                    fac = f"\n👤 Faculty: {c['Faculty']}" if c.get('Faculty') else ""
+                    await context.bot.send_message(cid, f"⏰ Reminder: **{c.get('FullName') or c['Subject']}** starts in {offset} min!{venue}{fac}", parse_mode="Markdown")
+                    SENT_REMINDERS.add(key)
+            except Exception as e: print(f"Reminder error for {cid}: {e}")
+                
+    if len(SENT_REMINDERS) > 500: SENT_REMINDERS = {k for k in SENT_REMINDERS if k[0] == today_str}
 
 def main():
     app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button))
-    app.add_handler(CommandHandler("today", today))
-    app.add_handler(CommandHandler("tomorrow", tomorrow))
-    app.add_handler(CommandHandler("week", week))
-    app.add_handler(CommandHandler("now", now_class))
-    app.add_handler(CommandHandler("next", next_class))
-    app.add_handler(CommandHandler("free", free_slots))
-    app.add_handler(CommandHandler("faculty", faculty))
-    app.add_handler(CommandHandler("remind_on", remind_on))
-    app.add_handler(CommandHandler("remind_off", remind_off))
-    app.add_handler(CommandHandler("remind_status", remind_status))
-    for d in ["mon","tue","wed","thu","fri","sat","sun"]:
+    for cmd, fn in [("start", start), ("today", today), ("tomorrow", tomorrow), ("week", week), ("now", now_class), ("next", next_class), ("free", free_slots), ("faculty", faculty), ("remind_on", remind_on), ("remind_off", remind_off), ("remind_status", remind_status)]:
+        app.add_handler(CommandHandler(cmd, fn))
+    for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]:
         app.add_handler(CommandHandler(d, day_cmd))
-    
-    if app.job_queue is not None:
-        app.job_queue.run_repeating(reminder_job, interval=60, first=10)
-    else:
-        print("⚠️  job_queue unavailable (APScheduler not installed) — reminders disabled.")
-    print("Telegram Bot running...")
-    app.run_polling()
+    app.add_handler(CallbackQueryHandler(button))
+
+    if app.job_queue: app.job_queue.run_repeating(reminder_job, interval=60, first=10)
+    print("🤖 Telegram Bot running...")
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()

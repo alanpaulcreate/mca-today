@@ -1,18 +1,17 @@
-import os
-import json
-import threading
-import time
+import os, threading, time
 from datetime import datetime, timedelta
 from flask import Flask, request, render_template, jsonify
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client
 from dotenv import load_dotenv
 
-from timetable import get_classes_for_day, get_free_slots_for_day, format_classes, format_all_faculty, get_all_courses
-from sanitizer import sanitize_text, sanitize_phone_number, sanitize_offset, sanitize_day, get_ist_now
+from timetable import (
+    get_classes_for_day, get_free_slots_for_day, format_classes, format_all_faculty,
+    get_all_courses, get_live_session_info, sanitize_phone_number, sanitize_offset,
+    sanitize_day, sanitize_text, get_ist_now, load_store, save_store
+)
 
 load_dotenv()
-
 app = Flask(__name__)
 
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
@@ -21,331 +20,131 @@ TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238
 
 twilio_client = None
 if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
-    try:
-        twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-    except Exception as e:
-        print(f"Twilio client init warning: {e}")
+    try: twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+    except Exception as e: print(f"Twilio warning: {e}")
 
-WHATSAPP_REMINDERS_FILE = "whatsapp_reminders.json"
+REMINDERS_FILE = "whatsapp_reminders.json"
 reminders_lock = threading.Lock()
 
-def load_whatsapp_reminders():
-    """Load and sanitize phone number to offset minutes mapping."""
-    sanitized_map = {}
-    if os.path.exists(WHATSAPP_REMINDERS_FILE):
-        try:
-            with open(WHATSAPP_REMINDERS_FILE, 'r') as f:
-                data = json.load(f)
-                if isinstance(data, list):
-                    for item in data:
-                        clean_phone = sanitize_phone_number(item)
-                        if clean_phone:
-                            sanitized_map[clean_phone] = 10
-                elif isinstance(data, dict):
-                    for k, v in data.items():
-                        clean_phone = sanitize_phone_number(k)
-                        if clean_phone:
-                            sanitized_map[clean_phone] = sanitize_offset(v)
-        except Exception as e:
-            print(f"Error loading WhatsApp reminders: {e}")
-    return sanitized_map
-
-def save_whatsapp_reminders(reminders_dict):
-    """Save sanitized phone number to offset minutes mapping."""
-    try:
-        with open(WHATSAPP_REMINDERS_FILE, 'w') as f:
-            json.dump(reminders_dict, f, indent=2)
-    except Exception as e:
-        print(f"Error saving WhatsApp reminders: {e}")
-
 def reminder_worker():
-    """Background daemon checking for upcoming classes and sending reminders."""
-    sent_reminders = set()
-    
+    sent = set()
     while True:
         try:
             now = get_ist_now()
             today_str = now.strftime("%Y-%m-%d")
-            day_abbr = now.strftime("%a").lower()
-            classes = get_classes_for_day(day_abbr, include_free=False)
-            
+            classes = get_classes_for_day(now.strftime("%a").lower())
             with reminders_lock:
-                current_reminders = load_whatsapp_reminders()
+                reminders = load_store(REMINDERS_FILE)
 
-            for phone_number, offset_mins in current_reminders.items():
-                offset = sanitize_offset(offset_mins)
+            for phone, offset in reminders.items():
                 for c in classes:
                     try:
-                        class_dt = datetime.strptime(c['Start'], "%H:%M").replace(
-                            year=now.year, month=now.month, day=now.day, second=0, microsecond=0
-                        )
-                        diff_seconds = (class_dt - now).total_seconds()
-                        target_seconds = offset * 60
-                        key = (today_str, c['Start'], phone_number)
-                        
-                        if 0 <= (target_seconds - diff_seconds) <= 45 and diff_seconds > 0:
-                            if key not in sent_reminders:
-                                if twilio_client:
-                                    venue_text = f"📍 {c['Venue']}" if c.get('Venue') and c['Venue'] != '-' else ""
-                                    msg_body = (
-                                        f"⏰ *Reminder:* *{c['Subject']}* starts in {offset} min!\n"
-                                        f"🕒 Start Time: {c['Start']}\n"
-                                        f"{venue_text}"
-                                    )
-                                    twilio_client.messages.create(
-                                        from_=TWILIO_WHATSAPP_NUMBER,
-                                        to=phone_number,
-                                        body=msg_body
-                                    )
-                                    sent_reminders.add(key)
-                    except Exception as err:
-                        print(f"Error checking class {c}: {err}")
-                        
-            if len(sent_reminders) > 500:
-                sent_reminders = {k for k in sent_reminders if k[0] == today_str}
-                
-        except Exception as e:
-            print(f"Error in WhatsApp reminder worker: {e}")
-            
+                        c_dt = datetime.strptime(c['Start'], "%H:%M").replace(year=now.year, month=now.month, day=now.day, second=0, microsecond=0)
+                        diff = (c_dt - now).total_seconds()
+                        key = (today_str, c['Start'], phone)
+                        if 0 <= (offset * 60 - diff) <= 45 and diff > 0 and key not in sent:
+                            if twilio_client:
+                                venue = f"📍 {c['Venue']}\n" if c.get('Venue') and c['Venue'] != '-' else ""
+                                fac = f"👤 Faculty: {c['Faculty']}\n" if c.get('Faculty') else ""
+                                twilio_client.messages.create(
+                                    from_=TWILIO_WHATSAPP_NUMBER, to=phone,
+                                    body=f"⏰ *Reminder:* *{c.get('FullName') or c['Subject']}* starts in {offset} min!\n🕒 {c['Start']}\n{venue}{fac}".strip()
+                                )
+                                sent.add(key)
+                    except Exception as err: print(f"Class reminder error: {err}")
+
+            if len(sent) > 500: sent = {k for k in sent if k[0] == today_str}
+        except Exception as e: print(f"WhatsApp worker error: {e}")
         time.sleep(30)
 
 threading.Thread(target=reminder_worker, daemon=True).start()
 
-# ----------------- Web Dashboard & API Endpoints ----------------- #
-
+# --- Web Endpoints --- #
 @app.route("/", methods=['GET'])
 def index():
-    """Interactive Web Dashboard."""
     return render_template("index.html")
 
 @app.route("/api/live_status", methods=['GET'])
 def api_live_status():
-    """Return currently ongoing class and next upcoming class in IST."""
-    now = get_ist_now()
-    day = now.strftime("%a").lower()
-    classes = get_classes_for_day(day, include_free=False)
-    
-    ongoing = None
-    next_up = None
-    
-    for c in classes:
-        try:
-            start_dt = datetime.strptime(c['Start'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
-            end_dt = datetime.strptime(c['End'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
-            
-            if start_dt <= now < end_dt:
-                if ongoing is None:  # take the first matching (earliest) ongoing class
-                    mins_left = max(1, int(round((end_dt - now).total_seconds() / 60)))
-                    ongoing = {**c, "mins_left": mins_left}
-            elif start_dt > now and next_up is None:
-                mins_until = max(1, int(round((start_dt - now).total_seconds() / 60)))
-                next_up = {**c, "mins_until": mins_until}
-        except Exception:
-            pass
-            
-    return jsonify({
-        "now": now.strftime("%H:%M:%S"),
-        "day": day,
-        "ongoing": ongoing,
-        "next": next_up
-    })
+    return jsonify(get_live_session_info())
 
 @app.route("/api/classes", methods=['GET'])
 def api_classes():
-    """Return schedule for a specific day or 'today'."""
     raw_day = request.args.get('day', 'today').strip().lower()
-    if raw_day in ['today', 'tdy']:
-        day = get_ist_now().strftime("%a").lower()
-    else:
-        day = sanitize_day(raw_day) or get_ist_now().strftime("%a").lower()
-        
-    classes = get_classes_for_day(day, include_free=False)
-    return jsonify({"day": day, "classes": classes})
+    day = get_ist_now().strftime("%a").lower() if raw_day in ['today', 'tdy'] else (sanitize_day(raw_day) or get_ist_now().strftime("%a").lower())
+    return jsonify({"day": day, "classes": get_classes_for_day(day)})
 
 @app.route("/api/faculty", methods=['GET'])
 def api_faculty():
-    """Return full faculty & course directory."""
     return jsonify({"courses": get_all_courses()})
 
 @app.route("/ping", methods=['GET'])
 @app.route("/health", methods=['GET'])
 def ping():
-    """Lightweight ping endpoint for uptime monitoring & cron jobs to prevent Render spin-down."""
-    return jsonify({
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "service": "mca-bot-server"
-    }), 200
+    return jsonify({"status": "healthy", "service": "mca-bot-server", "timestamp": datetime.now().isoformat()}), 200
 
-@app.route("/api/debug", methods=['GET'])
-def api_debug():
-    """Debug endpoint: returns current IST time, resolved day, and today's classes."""
-    now = get_ist_now()
-    day = now.strftime("%a").lower()
-    classes = get_classes_for_day(day, include_free=False)
-    return jsonify({
-        "ist_now": now.strftime("%Y-%m-%d %H:%M:%S"),
-        "day_resolved": day,
-        "class_count": len(classes),
-        "classes": classes
-    })
-
-# ----------------- Twilio WhatsApp Webhook ----------------- #
-
+# --- WhatsApp Webhook --- #
 @app.route("/whatsapp", methods=['POST'])
 def whatsapp_reply():
-    """Respond to incoming messages with sanitized input validation."""
-    raw_sender = request.values.get('From', '')
-    raw_body = request.values.get('Body', '')
-    
-    # 1. Sanitize outside inputs
-    sender = sanitize_phone_number(raw_sender)
-    clean_msg = sanitize_text(raw_body).lower()
-    
+    sender = sanitize_phone_number(request.values.get('From', ''))
+    clean = sanitize_text(request.values.get('Body', '')).lower()
     resp = MessagingResponse()
     msg = resp.message()
-    
+
     if not sender:
         msg.body("⚠️ Invalid sender identification.")
         return str(resp), 400
 
-    # 2. Reminders Management
-    if clean_msg.startswith("remind on") or clean_msg == "remind":
-        parts = clean_msg.split()
-        offset = 10
-        if len(parts) >= 3:
-            offset = sanitize_offset(parts[2])
-        elif len(parts) >= 2:
-            offset = sanitize_offset(parts[1])
-            
+    if clean.startswith("remind on") or clean == "remind":
+        parts = clean.split()
+        offset = sanitize_offset(parts[2] if len(parts) >= 3 else (parts[1] if len(parts) >= 2 else 10))
         with reminders_lock:
-            data = load_whatsapp_reminders()
+            data = load_store(REMINDERS_FILE)
             data[sender] = offset
-            save_whatsapp_reminders(data)
-            
-        msg.body(f"✅ *Reminders Activated!* You will receive WhatsApp alerts *{offset} minutes* before each class.\n\nTip: You can change the offset anytime using `remind on 15` or stop using `remind off`.")
+            save_store(REMINDERS_FILE, data)
+        msg.body(f"🔔 *Reminders Set ({offset}m):*\nFor reliable free alerts, launch Telegram Bot: https://t.me/Mcatimetablebot")
         return str(resp)
 
-    elif clean_msg in ["remind off", "stop reminders", "remind cancel"]:
+    if clean in ["remind off", "stop reminders", "remind cancel"]:
         with reminders_lock:
-            data = load_whatsapp_reminders()
-            if sender in data:
-                del data[sender]
-                save_whatsapp_reminders(data)
-                msg.body("🔕 *Reminders Disabled.* You will no longer receive automated class alerts.")
-            else:
-                msg.body("ℹ️ You do not currently have reminders enabled.")
+            data = load_store(REMINDERS_FILE)
+            if sender in data: del data[sender]; save_store(REMINDERS_FILE, data)
+        msg.body("🔕 Class alerts disabled.")
         return str(resp)
 
-    elif clean_msg in ["remind status", "reminder status", "reminders"]:
-        with reminders_lock:
-            data = load_whatsapp_reminders()
-            if sender in data:
-                offset = data[sender]
-                msg.body(f"🔔 *Reminders are ON* ({offset} minutes before class).\nSend `remind on <mins>` to change or `remind off` to disable.")
-            else:
-                msg.body("🔕 *Reminders are OFF*.\nSend `remind on` or `remind on 15` to enable alerts.")
+    if clean in ["free", "freeslot", "freeslots", "free slots"]:
+        slots = get_free_slots_for_day(get_ist_now().strftime("%a").lower())
+        msg.body("🏖️ *Free Slots Today:*\n" + "\n".join([f"☕ {s['Start']} - {s['End']}" for s in slots]) if slots else "No designated free slots today! 💪")
         return str(resp)
 
-    # 3. Free Slots
-    elif clean_msg in ["free", "freeslot", "freeslots", "free slots"]:
-        day = get_ist_now().strftime("%a").lower()
-        free_slots = get_free_slots_for_day(day)
-        if free_slots:
-            text = "🏖️ *Free Slots Today:*\n"
-            for s in free_slots:
-                text += f"☕ {s['Start']} - {s['End']}\n"
-            msg.body(text)
-        else:
-            msg.body("No designated free slots today! Stay strong 💪")
+    if clean in ['today', 'tdy', 'tomorrow', 'tmr'] or sanitize_day(clean):
+        day = get_ist_now().strftime("%a").lower() if clean in ['today', 'tdy'] else ((get_ist_now() + timedelta(days=1)).strftime("%a").lower() if clean in ['tomorrow', 'tmr'] else sanitize_day(clean))
+        msg.body(f"📅 *{day.upper()}:*\n{format_classes(get_classes_for_day(day))}")
         return str(resp)
 
-    # 4. Schedule Queries
-    elif clean_msg in ['today', 'tdy']:
-        day = get_ist_now().strftime("%a").lower()
-        classes = get_classes_for_day(day, include_free=False)
-        msg.body(f"📅 *Today:*\n{format_classes(classes)}")
-        
-    elif clean_msg in ['tomorrow', 'tmr']:
-        day = (get_ist_now() + timedelta(days=1)).strftime("%a").lower()
-        classes = get_classes_for_day(day, include_free=False)
-        msg.body(f"📅 *Tomorrow:*\n{format_classes(classes)}")
-        
-    elif clean_msg == 'week':
-        days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-        text = "🗓️ *Weekly Timetable*\n\n"
-        for day in days:
-            classes = get_classes_for_day(day, include_free=False)
-            if classes:
-                text += f"*{day.capitalize()}*:\n{format_classes(classes)}\n"
-        msg.body(text)
-        
-    elif clean_msg == 'now':
-        now = get_ist_now()
-        day = now.strftime("%a").lower()
-        classes = get_classes_for_day(day, include_free=False)
-        found = False
-        for c in classes:
-            try:
-                start_time = datetime.strptime(c['Start'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
-                end_time = datetime.strptime(c['End'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
-                if start_time <= now < end_time:
-                    mins_left = max(1, int(round((end_time - now).total_seconds() / 60)))
-                    venue_text = f" @ {c['Venue']}" if c.get('Venue') and c['Venue'] != '-' else ""
-                    msg.body(f"🟢 *Currently Ongoing:*\n\n*{c['Subject']}*{venue_text}\nEnds in {mins_left} mins ({c['End']})")
-                    found = True
-                    break
-            except Exception:
-                pass
-        if not found:
-            msg.body("No class is currently ongoing. 🎉")
-            
-    elif clean_msg == 'next':
-        now = get_ist_now()
-        day = now.strftime("%a").lower()
-        classes = get_classes_for_day(day, include_free=False)
-        found = False
-        for c in classes:
-            try:
-                start_time = datetime.strptime(c['Start'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
-                if start_time > now:
-                    mins = max(1, int(round((start_time - now).total_seconds() / 60)))
-                    venue_text = f"📍 {c['Venue']}" if c.get('Venue') and c['Venue'] != '-' else ""
-                    msg.body(f"⏭️ Next: *{c['Subject']}* in {mins} min\n{venue_text} @ {c['Start']}")
-                    found = True
-                    break
-            except Exception:
-                pass
-        if not found:
-            msg.body("No more classes today 🎉")
-            
-    elif sanitize_day(clean_msg):
-        valid_day = sanitize_day(clean_msg)
-        classes = get_classes_for_day(valid_day, include_free=False)
-        msg.body(f"📅 *{valid_day.upper()}:*\n{format_classes(classes)}")
-        
-    elif clean_msg in ['faculty', 'teachers', 'professors', 'staff', 'courses']:
+    if clean == 'week':
+        txt = ["🗓️ *Weekly Timetable*\n"]
+        for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]:
+            c = get_classes_for_day(d)
+            if c: txt.append(f"*{d.capitalize()}*:\n{format_classes(c)}\n")
+        msg.body("\n".join(txt))
+        return str(resp)
+
+    if clean in ['now', 'next']:
+        info = get_live_session_info()
+        c = info.get('ongoing' if clean == 'now' else 'next')
+        if c:
+            venue = f"📍 {c['Venue']} " if c.get('Venue') and c['Venue'] != '-' else ""
+            timing = f"Ends in {c['mins_left']} mins" if clean == 'now' else f"in {c['mins_until']} min @ {c['Start']}"
+            msg.body(f"{'🟢 Ongoing:' if clean == 'now' else '⏭️ Next:'} *{c.get('FullName') or c['Subject']}*\n{venue}{timing}")
+        else: msg.body("No class currently ongoing." if clean == 'now' else "No more classes today 🎉")
+        return str(resp)
+
+    if clean in ['faculty', 'teachers', 'professors', 'staff', 'courses']:
         msg.body(format_all_faculty().replace("**", "*"))
         return str(resp)
 
-    else:
-        msg.body(
-            "Hey! I'm your Timetable Bot 📅\n\n"
-            "Reply with any of these commands:\n"
-            "• *today* - Today's schedule\n"
-            "• *tomorrow* - Tomorrow's schedule\n"
-            "• *now* - Current class\n"
-            "• *next* - Next upcoming class\n"
-            "• *week* - Full week timetable\n"
-            "• *free* - Free slots today\n"
-            "• *faculty* - Course codes & teachers\n"
-            "• *mon*, *tue*, *wed*, etc.\n\n"
-            "🔔 *Reminders:*\n"
-            "• *remind on [mins]* - e.g. `remind on 15`\n"
-            "• *remind off* - Stop alerts\n"
-            "• *remind status* - Check settings"
-        )
-
+    msg.body("Hey! I'm your Timetable Bot 📅\n\nCommands:\n• *today*, *tomorrow*, *week*, *now*, *next*, *free*, *faculty*\n• *mon*, *tue*, *wed*, etc.\n• *remind on [mins]*, *remind off*")
     return str(resp)
 
 if __name__ == "__main__":

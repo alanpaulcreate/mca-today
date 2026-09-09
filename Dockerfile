@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Default command: runs WhatsApp webhook on port 5000 using Gunicorn
+# Default command: runs Unified MCA Bot Manager (both Telegram & Web/WhatsApp)
+ENV PYTHONUNBUFFERED=1
 EXPOSE 5000
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "4", "whatsapp_bot:app"]
+CMD ["python", "run.py"]
